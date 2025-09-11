@@ -4,17 +4,27 @@ using UnityEngine;
 
 public class Grid : MonoBehaviour
 {
+    public ShapeStorage shapeStorage;
     public int rows = 0;
-    public int clos = 0;
+    public int cols = 0;
     public float squaresGap = 0.1f;
     public GameObject GridSquare;
-    public Vector2 startPos = new Vector2(0.0f, 0.0f);  
+    public Vector2 startPos = new Vector2(0.0f, 0.0f);
     public float squareScale = 0.5f;
     public float squareOffset = 0.0f;
 
     private Vector2 _offset = new Vector2(0.0f, 0.0f);
     private List<GameObject> _gridSquares = new List<GameObject>();
 
+    private void OnEnable()
+    {
+        GameEvents.CheckIfShapeCanBePlaced += CheckIfShapeCanBePlaced;
+    }
+
+    private void OnDisable()
+    {
+        GameEvents.CheckIfShapeCanBePlaced -= CheckIfShapeCanBePlaced;
+    }
 
     void Start()
     {
@@ -33,9 +43,10 @@ public class Grid : MonoBehaviour
         int square_index = 0;
         for (var row = 0; row < rows; ++row)
         {
-            for (var col = 0; col < clos; ++col)
+            for (var col = 0; col < cols; ++col)
             {
                 _gridSquares.Add(Instantiate(GridSquare) as GameObject);
+                _gridSquares[_gridSquares.Count - 1].GetComponent<GridSquare>().SquareIndex = square_index;
                 _gridSquares[_gridSquares.Count - 1].transform.SetParent(this.transform);
                 _gridSquares[_gridSquares.Count - 1].transform.localScale = new Vector3(squareScale, squareScale, squareScale);
                 _gridSquares[_gridSquares.Count - 1].GetComponent<GridSquare>().SetImage(square_index % 2 == 0);
@@ -56,8 +67,8 @@ public class Grid : MonoBehaviour
         _offset.y = square_rect.rect.height * square_rect.transform.localScale.y + squareOffset;
 
         foreach (GameObject square in _gridSquares)
-        {   
-            if (col_number + 1 > clos)
+        {
+            if (col_number + 1 > cols)
             {
                 square_gap_number.x = 0;
                 col_number = 0;
@@ -84,5 +95,54 @@ public class Grid : MonoBehaviour
             col_number++;
         }
 
+    }
+
+    private void CheckIfShapeCanBePlaced()
+    {
+        var squareIndex = new List<int>();
+
+        foreach (var square in _gridSquares)
+        {
+            var gridSquare = square.GetComponent<GridSquare>();
+            if (gridSquare.Selected && !gridSquare.Squareoccupied)
+            {
+                squareIndex.Add(gridSquare.SquareIndex);
+                gridSquare.Selected = false;
+                //gridSquare.ActivateSquare();
+            }
+        }
+
+        var CurrentSelectedShape = shapeStorage.GetCurrentSelectedShape();
+        if (CurrentSelectedShape == null) return; // No shape selected
+        if (CurrentSelectedShape.TotalSquaresNumber == squareIndex.Count)
+        {
+            foreach (var square_index in squareIndex)
+            {
+                _gridSquares[square_index].GetComponent<GridSquare>().PlaceShapeOnBroad();
+            }
+
+
+            var shapeLeft = 0;
+            foreach (var shape in shapeStorage.shapeList)
+            {
+                if (shape.IsOnStrartPosition() && shape.IsAnyOfShapeSquareActive())
+                {
+                    shapeLeft++;
+                }
+            }
+
+            if (shapeLeft == 0)
+            {
+                GameEvents.RequestNewAShape();
+            }
+            else
+            {
+                GameEvents.SetShapeInActive();
+            }
+        }
+        else
+        {
+            GameEvents.MoveShapeToStartPosition();
+        }
     }
 }
